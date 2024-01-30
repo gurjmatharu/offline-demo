@@ -20,17 +20,31 @@ You can start editing the page by modifying `app/page.js`. The page auto-updates
 
 This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
 
-## Learn More
+# React App Overview
 
-To learn more about Next.js, take a look at the following resources:
+## API Call Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Random character calls to Star Wars API.
+- Queue system for managing calls: offline (queued) and online (processed).
+- Status tracking (queued, in progress, completed, failed).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## Token Refresh
 
-## Deploy on Vercel
+- Refresh on switching from offline to online.
+- Also triggers on receiving a 401 (Unauthorized) error.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Local Storage vs Redux Offline
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- Local Storage is used for its simplicity and is adequate for this app's scale and complexity.
+- Redux Offline or similar libraries (like redux-persist or PouchDB) are recommended for more complex cases.
+
+## Known Bugs and Fixes
+
+- Fixed issues with response data being overwritten.
+- Timestamps as unique IDs for API call tracking.
+- Token refresh logic optimized to prevent redundancy.
+
+## Conclusion
+
+- Current implementation with Local Storage most likely suits the app's needs.
+- If complexity increaes alternative libraries may be needed.
