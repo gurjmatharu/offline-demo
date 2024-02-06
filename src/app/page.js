@@ -5,9 +5,10 @@ import makeApiCall from "./apiCalls";
 import { timeSince } from "./utils";
 import useNetworkStatus from "./useNetworkStatus";
 import db from './firebaseConfig';  // Import the Firestore instance
+import { deleteAllDocuments } from "./firestoreOperations"; // Import the Firestore 
 
 export default function Home() {
-  const isOnline = useNetworkStatus();
+  const [isOnline, setIsOnline] = useNetworkStatus();
   const [apiQueue, setApiQueue] = useState([]);
   const [apiResponses, setApiResponses] = useState([]);
   const [refreshToken, setRefreshToken] = useState("initial-token");
@@ -63,10 +64,14 @@ export default function Home() {
     }
   }, [isOnline, apiQueue]);
 
-  const clearStorage = () => {
+  const clearAllData = async () => {
+    // Clear local storage
     localStorage.removeItem("apiResponses");
     setApiResponses([]);
     setApiQueue([]);
+
+    // Clear Firestore database
+    await deleteAllDocuments(db);
   };
 
   const sortedApiQueue = [...apiQueue].sort((a, b) => b.timestamp - a.timestamp);
@@ -78,12 +83,13 @@ export default function Home() {
         <p className="text-lg">{`Current Mode: ${isOnline ? "Online" : "Offline"}`}</p>
         <p className="text-lg">{`Token Status: ${isRefreshingToken ? "Refreshing..." : "Active"}`}</p>
       </div>
+
       <div className="mb-4">
         <button onClick={handleToggle} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2">
           {isOnline ? "Switch to Offline" : "Switch to Online"}
         </button>
-        <button onClick={clearStorage} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
-          Clear Storage
+        <button onClick={clearAllData} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+          Clear All Data (Local & Cloud)
         </button>
       </div>
 
@@ -116,6 +122,7 @@ export default function Home() {
             <tr>
               <th className="px-4 py-2">URL</th>
               <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Saved in Firestore</th>
             </tr>
           </thead>
           <tbody>
@@ -123,6 +130,7 @@ export default function Home() {
               <tr key={response.id}>
                 <td className="border px-4 py-2">{response.url}</td>
                 <td className="border px-4 py-2">{response.name}</td>
+                <td className="border px-4 py-2">{response.firestoreSaved ? "Yes" : "No"}</td>
               </tr>
             ))}
           </tbody>
