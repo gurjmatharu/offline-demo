@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import makeApiCall from "./apiCalls";  // Assuming apiCalls.js is in the same directory
-import { timeSince } from "./utils";  // Assuming utils.js is in the same directory
-import useNetworkStatus from "./useNetworkStatus";  // Assuming useNetworkStatus.js is in the same directory
+import makeApiCall from "./apiCalls";
+import { timeSince } from "./utils";
+import useNetworkStatus from "./useNetworkStatus";
+import db from './firebaseConfig';  // Import the Firestore instance
 
 export default function Home() {
   const isOnline = useNetworkStatus();
@@ -12,13 +13,20 @@ export default function Home() {
   const [refreshToken, setRefreshToken] = useState("initial-token");
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
 
-  // Load saved responses from localStorage
+  const mockRefreshToken = () => {
+    setIsRefreshingToken(true);
+    // Simulate a token refresh process with a timeout
+    setTimeout(() => {
+      // Mock new token - in real scenario, this would come from an auth service
+      setRefreshToken(`refreshed-token-${Date.now()}`);
+      setIsRefreshingToken(false);
+    }, 2000); // 2 seconds delay to simulate token refresh
+  };
   useEffect(() => {
     const savedResponses = JSON.parse(localStorage.getItem("apiResponses") || "[]");
     setApiResponses(savedResponses);
   }, []);
 
-  // Function to save API responses
   const saveResponse = (response) => {
     setApiResponses((prevResponses) => {
       const updatedResponses = [...prevResponses, response];
@@ -27,44 +35,40 @@ export default function Home() {
     });
   };
 
-  // Function to update API call queue
   const updateQueue = (id, newStatus) => {
     setApiQueue((prevQueue) => prevQueue.map((call) => call.id === id ? { ...call, status: newStatus } : call));
   };
+
   const handleToggle = () => {
-    setIsOnline(!isOnline); // Manually toggle the online status
+    setIsOnline(!isOnline);
   };
 
-  // Add new API call to the queue
   const addToQueue = () => {
     const randomId = Math.floor(Math.random() * 50) + 1;
     const url = `https://swapi.dev/api/people/${randomId}/`;
-    const newCall = { id: Date.now(), url, status: isOnline ? "in progress" : "queued", timestamp: new Date() };
+    const newCall = { id: Date.now(), url, status: isOnline ? "in progress" : "queued", timestamp: new Date(), refreshToken };
     setApiQueue((prevQueue) => [...prevQueue, newCall]);
     if (isOnline) {
-      makeApiCall(newCall, updateQueue, saveResponse, refreshToken);
+      makeApiCall(newCall, updateQueue, saveResponse, db);  // Pass db to makeApiCall
     }
   };
 
-  // Process queued API calls when online
   useEffect(() => {
     if (isOnline) {
       apiQueue.forEach((call) => {
         if (call.status === "queued") {
-          makeApiCall(call, updateQueue, saveResponse, refreshToken);
+          makeApiCall(call, updateQueue, saveResponse, db);  // Pass db to makeApiCall
         }
       });
     }
-  }, [isOnline, apiQueue, refreshToken]);
+  }, [isOnline, apiQueue]);
 
-  // Function to clear local storage and reset states
   const clearStorage = () => {
     localStorage.removeItem("apiResponses");
     setApiResponses([]);
     setApiQueue([]);
   };
 
-  // Sort the API queue and responses for display
   const sortedApiQueue = [...apiQueue].sort((a, b) => b.timestamp - a.timestamp);
   const sortedApiResponses = [...apiResponses].sort((a, b) => b.timestamp - a.timestamp);
 
