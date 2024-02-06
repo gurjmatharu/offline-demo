@@ -1,113 +1,70 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import makeApiCall from "./apiCalls";  // Assuming apiCalls.js is in the same directory
+import { timeSince } from "./utils";  // Assuming utils.js is in the same directory
+import useNetworkStatus from "./useNetworkStatus";  // Assuming useNetworkStatus.js is in the same directory
 
 export default function Home() {
-  const [isOnline, setIsOnline] = useState(true);
+  const isOnline = useNetworkStatus();
   const [apiQueue, setApiQueue] = useState([]);
   const [apiResponses, setApiResponses] = useState([]);
   const [refreshToken, setRefreshToken] = useState("initial-token");
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
 
+  // Load saved responses from localStorage
   useEffect(() => {
     const savedResponses = JSON.parse(localStorage.getItem("apiResponses") || "[]");
     setApiResponses(savedResponses);
   }, []);
 
-  useEffect(() => {
-    if (isOnline) {
-      refreshAuthToken();
-    }
-  }, [isOnline]);
-
-  const refreshAuthToken = () => {
-    setIsRefreshingToken(true);
-    return new Promise(resolve => {
-      setTimeout(() => {
-        setRefreshToken(`refreshed-token-${Date.now()}`);
-        setIsRefreshingToken(false);
-        resolve();
-      }, 1000);
-    });
-  };
-
+  // Function to save API responses
   const saveResponse = (response) => {
-    setApiResponses(prevResponses => {
-      const updatedResponses = [...prevResponses, { ...response, id: Date.now() }];
+    setApiResponses((prevResponses) => {
+      const updatedResponses = [...prevResponses, response];
       localStorage.setItem("apiResponses", JSON.stringify(updatedResponses));
       return updatedResponses;
     });
   };
 
+  // Function to update API call queue
   const updateQueue = (id, newStatus) => {
-    setApiQueue(prevQueue =>
-      prevQueue.map(call =>
-        call.id === id ? { ...call, status: newStatus } : call
-      )
-    );
+    setApiQueue((prevQueue) => prevQueue.map((call) => call.id === id ? { ...call, status: newStatus } : call));
   };
-
-  const makeApiCall = (call) => {
-    updateQueue(call.id, 'in progress');
-    axios.get(call.url, { headers: { Authorization: `Bearer ${refreshToken}` } })
-      .then(response => {
-        saveResponse({ url: call.url, name: response.data.name });
-        updateQueue(call.id, 'completed');
-      })
-      .catch(error => {
-        if (error.response && error.response.status === 401) {
-          refreshAuthToken().then(() => {
-            makeApiCall(call);
-          });
-        } else {
-          updateQueue(call.id, 'failed');
-        }
-      });
-  };
-
-  useEffect(() => {
-    if (isOnline) {
-      apiQueue.forEach(call => {
-        if (call.status === "queued") {
-          makeApiCall(call);
-        }
-      });
-    }
-  }, [isOnline, apiQueue]);
-
   const handleToggle = () => {
-    setIsOnline(prevState => !prevState);
+    setIsOnline(!isOnline); // Manually toggle the online status
   };
 
+  // Add new API call to the queue
   const addToQueue = () => {
     const randomId = Math.floor(Math.random() * 50) + 1;
     const url = `https://swapi.dev/api/people/${randomId}/`;
-    const newCall = {
-      id: Date.now(),
-      url,
-      status: isOnline ? "in progress" : "queued",
-      timestamp: new Date()
-    };
-    setApiQueue(prevQueue => [...prevQueue, newCall]);
+    const newCall = { id: Date.now(), url, status: isOnline ? "in progress" : "queued", timestamp: new Date() };
+    setApiQueue((prevQueue) => [...prevQueue, newCall]);
     if (isOnline) {
-      makeApiCall(newCall);
+      makeApiCall(newCall, updateQueue, saveResponse, refreshToken);
     }
   };
 
-  const timeSince = (date) => {
-    const seconds = Math.floor((new Date() - date) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes} min ${remainingSeconds} sec ago`;
-  };
+  // Process queued API calls when online
+  useEffect(() => {
+    if (isOnline) {
+      apiQueue.forEach((call) => {
+        if (call.status === "queued") {
+          makeApiCall(call, updateQueue, saveResponse, refreshToken);
+        }
+      });
+    }
+  }, [isOnline, apiQueue, refreshToken]);
 
+  // Function to clear local storage and reset states
   const clearStorage = () => {
     localStorage.removeItem("apiResponses");
     setApiResponses([]);
-    setApiQueue([]); // Clear the API Queue as well
+    setApiQueue([]);
   };
 
+  // Sort the API queue and responses for display
   const sortedApiQueue = [...apiQueue].sort((a, b) => b.timestamp - a.timestamp);
   const sortedApiResponses = [...apiResponses].sort((a, b) => b.timestamp - a.timestamp);
 
