@@ -33,10 +33,11 @@ This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-opti
 - Refresh on switching from offline to online.
 - Also triggers on receiving a 401 (Unauthorized) error.
 
-## Local Storage vs Redux Offline
+### Local Storage and Firestore Integration
 
-- Local Storage is used for its simplicity and is adequate for this app's scale and complexity.
-- Redux Offline or similar libraries (like redux-persist or PouchDB) are recommended for more complex cases.
+- Utilizes Local Storage to cache API responses and queue status, ensuring data persistence across sessions.
+- Integrated Firestore database for cloud syncing of API responses.
+- Implements a system to sync local cache with Firestore when transitioning from offline to online, ensuring data consistency.
 
 ## Known Bugs and Fixes
 

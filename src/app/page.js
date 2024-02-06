@@ -45,7 +45,11 @@ export default function Home() {
   };
 
   const addToQueue = () => {
-    const randomId = Math.floor(Math.random() * 50) + 1;
+    let randomId = Math.floor(Math.random() * 50) + 1;
+    // Regenerate randomId if it's 17
+    while (randomId === 17) {
+      randomId = Math.floor(Math.random() * 50) + 1;
+    }
     const url = `https://swapi.dev/api/people/${randomId}/`;
     const newCall = { id: Date.now(), url, status: isOnline ? "in progress" : "queued", timestamp: new Date(), refreshToken };
     setApiQueue((prevQueue) => [...prevQueue, newCall]);
@@ -122,7 +126,7 @@ export default function Home() {
             <tr>
               <th className="px-4 py-2">URL</th>
               <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Saved in Firestore</th>
+              <th className="px-4 py-2">Saved in Firestore (POST)</th>
             </tr>
           </thead>
           <tbody>
