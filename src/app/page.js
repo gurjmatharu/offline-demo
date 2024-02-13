@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react";
 import makeApiCall from "./apiCalls";
 import { timeSince } from "./utils";
 import useNetworkStatus from "./useNetworkStatus";
-import db from './firebaseConfig';  // Import the Firestore instance
-import { deleteAllDocuments } from "./firestoreOperations"; // Import the Firestore 
+import db from './firebaseConfig';
+import { deleteAllDocuments } from "./firestoreOperations";
 
 export default function Home() {
   const [isOnline, setIsOnline] = useNetworkStatus();
@@ -13,88 +13,84 @@ export default function Home() {
   const [apiResponses, setApiResponses] = useState([]);
   const [refreshToken, setRefreshToken] = useState("initial-token");
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [packetLossRate, setPacketLossRate] = useState("");
 
-  const mockRefreshToken = () => {
-    setIsRefreshingToken(true);
-    // Simulate a token refresh process with a timeout
-    setTimeout(() => {
-      // Mock new token - in real scenario, this would come from an auth service
-      setRefreshToken(`refreshed-token-${Date.now()}`);
-      setIsRefreshingToken(false);
-    }, 2000); // 2 seconds delay to simulate token refresh
-  };
   useEffect(() => {
     const savedResponses = JSON.parse(localStorage.getItem("apiResponses") || "[]");
     setApiResponses(savedResponses);
   }, []);
 
-  const saveResponse = (response) => {
-    setApiResponses((prevResponses) => {
-      const updatedResponses = [...prevResponses, response];
-      localStorage.setItem("apiResponses", JSON.stringify(updatedResponses));
-      return updatedResponses;
-    });
-  };
-
-  const updateQueue = (id, newStatus) => {
-    setApiQueue((prevQueue) => prevQueue.map((call) => call.id === id ? { ...call, status: newStatus } : call));
-  };
-
-  const handleToggle = () => {
-    setIsOnline(!isOnline);
-  };
-
-  const addToQueue = () => {
-    let randomId = Math.floor(Math.random() * 50) + 1;
-    // Regenerate randomId if it's 17
-    while (randomId === 17) {
-      randomId = Math.floor(Math.random() * 50) + 1;
-    }
-    const url = `https://swapi.dev/api/people/${randomId}/`;
-    const newCall = { id: Date.now(), url, status: isOnline ? "in progress" : "queued", timestamp: new Date(), refreshToken };
-    setApiQueue((prevQueue) => [...prevQueue, newCall]);
-    if (isOnline) {
-      makeApiCall(newCall, updateQueue, saveResponse, db);  // Pass db to makeApiCall
-    }
-  };
-
   useEffect(() => {
     if (isOnline) {
-      apiQueue.forEach((call) => {
-        if (call.status === "queued") {
-          makeApiCall(call, updateQueue, saveResponse, db);  // Pass db to makeApiCall
+      // Attempt to retry queued or retrying calls when coming back online
+      apiQueue.forEach(call => {
+        if (call.status === "queued" || call.status === "retrying") {
+          makeApiCall(call, updateQueue, saveResponse, db, parseFloat(packetLossRate) / 100 || 0);
         }
       });
     }
   }, [isOnline, apiQueue]);
 
+  const saveResponse = (response) => {
+    const updatedResponses = [...apiResponses, response];
+    setApiResponses(updatedResponses);
+    localStorage.setItem("apiResponses", JSON.stringify(updatedResponses));
+  };
+
+  const updateQueue = (id, newStatus) => {
+    const updatedQueue = apiQueue.map(call => call.id === id ? { ...call, status: newStatus, lastRetry: new Date() } : call);
+    setApiQueue(updatedQueue);
+  };
+
+  const addToQueue = () => {
+    let randomId = Math.floor(Math.random() * 50) + 1;
+    while (randomId === 17) {
+      randomId = Math.floor(Math.random() * 50) + 1;
+    }
+    const url = `https://swapi.dev/api/people/${randomId}/`;
+    const newCall = {
+      id: Date.now(),
+      url,
+      status: isOnline ? "in progress" : "queued",
+      timestamp: new Date(),
+      refreshToken,
+    };
+    setApiQueue(prevQueue => [...prevQueue, newCall]);
+    if (isOnline) {
+      makeApiCall(newCall, updateQueue, saveResponse, db, parseFloat(packetLossRate) / 100 || 0);
+    }
+  };
+
   const clearAllData = async () => {
-    // Clear local storage
     localStorage.removeItem("apiResponses");
     setApiResponses([]);
     setApiQueue([]);
-
-    // Clear Firestore database
     await deleteAllDocuments(db);
   };
 
-  const sortedApiQueue = [...apiQueue].sort((a, b) => b.timestamp - a.timestamp);
-  const sortedApiResponses = [...apiResponses].sort((a, b) => b.timestamp - a.timestamp);
-
+  const handleToggle = () => setIsOnline(!isOnline);
   return (
     <main className="container mx-auto p-4">
       <div className="mb-4">
-        <p className="text-lg">{`Current Mode: ${isOnline ? "Online" : "Offline"}`}</p>
-        <p className="text-lg">{`Token Status: ${isRefreshingToken ? "Refreshing..." : "Active"}`}</p>
+        <p className="text-lg">Current Mode: {isOnline ? "Online" : "Offline"}</p>
+        <p className="text-lg">Token Status: {isRefreshingToken ? "Refreshing..." : "Active"}</p>
       </div>
 
       <div className="mb-4">
-        <button onClick={handleToggle} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2">
-          {isOnline ? "Switch to Offline" : "Switch to Online"}
-        </button>
-        <button onClick={clearAllData} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
-          Clear All Data (Local & Cloud)
-        </button>
+        <label htmlFor="packetLossRate" className="block text-sm font-medium text-gray-700">Packet Loss Rate (%)</label>
+        <input
+          type="number"
+          id="packetLossRate"
+          value={packetLossRate}
+          onChange={(e) => setPacketLossRate(e.target.value)}
+          className="text-black mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          placeholder="0-100"
+        />
+      </div>
+
+      <div className="mb-4">
+        <button onClick={handleToggle} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2">Switch to {isOnline ? "Offline" : "Online"}</button>
+        <button onClick={clearAllData} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Clear All Data (Local & Cloud)</button>
       </div>
 
       <div className="mb-4">
@@ -108,7 +104,7 @@ export default function Home() {
             </tr>
           </thead>
           <tbody>
-            {sortedApiQueue.map((call) => (
+            {apiQueue.map((call) => (
               <tr key={call.id}>
                 <td className="border px-4 py-2">{call.url}</td>
                 <td className="border px-4 py-2">{call.status}</td>
@@ -130,7 +126,7 @@ export default function Home() {
             </tr>
           </thead>
           <tbody>
-            {sortedApiResponses.map((response) => (
+            {apiResponses.map((response) => (
               <tr key={response.id}>
                 <td className="border px-4 py-2">{response.url}</td>
                 <td className="border px-4 py-2">{response.name}</td>
@@ -141,9 +137,7 @@ export default function Home() {
         </table>
       </div>
 
-      <button onClick={addToQueue} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mt-4">
-        Make API Call to Star Wars API
-      </button>
+      <button onClick={addToQueue} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mt-4">Make API Call to Star Wars API</button>
     </main>
   );
 }
